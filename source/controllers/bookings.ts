@@ -35,6 +35,55 @@ const createBooking = async (req: Request, res: Response, next: NextFunction) =>
     return res.status(200).json(bookingResult);
 }
 
+const extendBooking = async (req:Request, res:Response, next: NextFunction) => {
+    const { id } = req.params;
+    const { additionalNights } = req.body;
+    if (!id) {
+        return res.status(500).json({ result: false, reason: 'Booking ID is required' });
+    }
+    // check 1 : Existing booking is found
+    const existingBooking = await prisma.booking.findUnique({
+        where: { id: parseInt(id) }
+    });
+    if (!existingBooking) {
+        return res.status(404).json({ result: false, reason: 'Booking not found' });
+    }
+
+    // check 2 : check if booking is possible
+    const updatedEndDate = new Date(existingBooking.checkInDate.getTime() + additionalNights * 24 * 60 * 60 * 1000);
+    const updatedNoOfNights = existingBooking.numberOfNights + additionalNights;
+
+    const isBookingExisting = await prisma.booking.findFirst({
+        where: {
+            unitID: {
+                equals: existingBooking.unitID,
+            },
+            checkInDate: {
+                lte: updatedEndDate,
+            },
+            numberOfNights: {
+                equals : updatedNoOfNights
+            },
+            NOT: {
+                id: existingBooking.id,
+            }
+        }
+    })
+    if(isBookingExisting){
+        return res.status(404).json({ result: false, reason: '"For the given check-in date, the unit is already occupied' });
+    }
+
+    // Update booking
+    const updatedBookingResult = await prisma.booking.update({
+        where: { id: existingBooking.id },
+        data: {
+            numberOfNights: updatedNoOfNights,
+        },
+    });
+
+    return res.status(200).json(updatedBookingResult);
+}
+
 type bookingOutcome = {result:boolean, reason:string};
 
 async function isBookingPossible(booking: Booking): Promise<bookingOutcome> {
@@ -100,4 +149,4 @@ async function isBookingPossible(booking: Booking): Promise<bookingOutcome> {
     return {result: true, reason: "OK"};
 }
 
-export default { healthCheck, createBooking }
+export default { healthCheck, createBooking, extendBooking }

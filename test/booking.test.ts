@@ -43,7 +43,7 @@ describe('Booking API', () => {
 
     test('Create fresh booking', async () => {
         const response = await axios.post('http://localhost:8000/api/v1/booking', GUEST_A_UNIT_1);
-
+        
         expect(response.status).toBe(200);
         expect(response.data.guestName).toBe(GUEST_A_UNIT_1.guestName);
         expect(response.data.unitID).toBe(GUEST_A_UNIT_1.unitID);
@@ -132,5 +132,27 @@ describe('Booking API', () => {
         expect(error).toBeInstanceOf(AxiosError);
         expect(error.response.status).toBe(400);
         expect(error.response.data).toBe('For the given check-in date, the unit is already occupied');
+    });
+
+    test('extend existing booking', async () => {
+        const response1 = await axios.post('http://localhost:8000/api/v1/booking', GUEST_A_UNIT_1);
+
+        expect(response1.status).toBe(200);
+        expect(response1.data.guestName).toBe(GUEST_A_UNIT_1.guestName);
+
+        const bookingId = response1.data.id;
+        
+        let error: any;
+        try{
+            const response2 = await axios.put(`http://localhost:8000/api/v1/bookings/${bookingId}/extend`, {
+                guestName: 'GuestA',
+                additionalNights: 3,
+            });
+            expect(response2.status).toBe(200);
+            expect(response2.data.numberOfNights).toBe(8);
+        } catch (e) {
+            error = e;
+        }
+
     });
 });
