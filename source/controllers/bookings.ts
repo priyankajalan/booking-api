@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import moment, { Moment } from 'moment';
 import prisma from '../prisma'
 
 interface Booking {
@@ -67,20 +68,33 @@ async function isBookingPossible(booking: Booking): Promise<bookingOutcome> {
     }
 
     // check 3 : Unit is available for the check-in date
-    let isUnitAvailableOnCheckInDate = await prisma.booking.findMany({
+    const isBookingFound = await prisma.booking.findMany({
         where: {
-            AND: {
-                checkInDate: {
-                    equals: new Date(booking.checkInDate),
-                },
+            // AND: {
+            //     checkInDate: {
+            //         equals: new Date(booking.checkInDate),
+            //     },
                 unitID: {
                     equals: booking.unitID,
                 }
-            }
+            // }
         }
     });
-    if (isUnitAvailableOnCheckInDate.length > 0) {
-        return {result: false, reason: "For the given check-in date, the unit is already occupied"};
+    if (isBookingFound.length > 0) {
+        // if any existing booking is found for that unit
+        const isUnitAvailableOnCheckInDate = isBookingFound.find((bookingInfo:any) => {
+            const startDate: Moment = moment(bookingInfo.checkInDate) // check-in date of the existing booking
+            const endDate: Moment = moment(new Date(booking.checkInDate)) // check-in date of new booking
+            // duration difference of both bookings as no of days
+            const days = moment.duration(endDate.diff(startDate)).asDays(); 
+            // check if existing booking days clashes with the new booking
+            if(days <= bookingInfo.numberOfNights){
+                return true;
+            }
+        })
+        if(isUnitAvailableOnCheckInDate){
+            return {result: false, reason: "For the given check-in date, the unit is already occupied"};
+        }
     }
 
     return {result: true, reason: "OK"};
